@@ -1,0 +1,662 @@
+$(function () {
+    // main start
+    setInterval(async () => {
+        if (window.tronWeb && window.tronWeb.defaultAddress.base58) {
+            userAddr = window.tronWeb.defaultAddress.base58;
+            setReferralLink()
+            bsg2 = tronWeb.contract(bsg2_abi, bsg2Addr);
+            usdt = tronWeb.contract(erc20_abi, usdtAddr);
+            await getUserTotalInfos();
+            await updateContractInfos();
+            await updateUserInfo();
+            await updateLatestDepositors();
+            await updateWinners();
+            await updateRewardInfo();
+            // await updateTeamInfos();
+            if (!isUpdated) {
+                isUpdated = true;
+                updateHistoryInfos();
+                lotteryCountdown(curDayStart + perDay, 0);
+                lotteryCountdown(curDayStart + lotteryDuration, 1);
+            }
+        }
+    }, autoRefresh);
+
+    function setReferralLink() {
+        let inviteLink = window.location.protocol + "//" + window.location.host + getUrlRelativePath() + "?ref=" + userAddr;
+        let linkShort = inviteLink.substring(0, 10) + "..." + inviteLink.substring(inviteLink.length - 10);
+        $(".referral-link").val(linkShort);
+    }
+
+    $(".copyLink").on("click", function () {
+        let inviteLink = window.location.protocol + "//" + window.location.host + getUrlRelativePath() + "?ref=" + userAddr;
+        let linkInput = document.createElement('input');
+        linkInput.value = inviteLink;
+        document.body.appendChild(linkInput);
+        linkInput.select();
+        document.execCommand('Copy');
+        document.body.removeChild(linkInput);
+        layer.msg(langMap['copy_success']);
+    })
+
+    async function getUserTotalInfos() {
+        let userTotalInfos = await bsg2.getUserInfos(userAddr).call();
+        let userInfo = userTotalInfos[0];
+        let rewardInfo = userTotalInfos[1];
+        orderInfos = userTotalInfos[2];
+        lotteryInfos = userTotalInfos[3];
+
+        userInfos.referrer = tronWeb.address.fromHex(userInfo[0]);
+        userInfos.level = parseInt(userInfo[1]);
+        userInfos.maxDeposit = parseFloat(tronWeb.fromSun(userInfo[2]));
+        userInfos.maxDepositable = parseFloat(tronWeb.fromSun(userInfo[3]));
+        userInfos.teamNum = parseInt(userInfo[4]);
+        userInfos.teamTotalDeposit = parseFloat(tronWeb.fromSun(userInfo[5]));
+        userInfos.totalFreezed = parseFloat(tronWeb.fromSun(userInfo[6]));
+        userInfos.totalRevenue = parseFloat(tronWeb.fromSun(userInfo[7]));
+        userInfos.unfreezeIndex = parseInt(userInfo[8]);
+        userInfos.unfreezedDynamic = userInfo[9];
+
+        rewardInfos.capitals = parseFloat(tronWeb.fromSun(rewardInfo[0]));
+        rewardInfos.statics = parseFloat(tronWeb.fromSun(rewardInfo[1]));
+        rewardInfos.invited = parseFloat(tronWeb.fromSun(rewardInfo[2]));
+        rewardInfos.level5Freezed = parseFloat(tronWeb.fromSun(rewardInfo[3]));
+        rewardInfos.level5Released = parseFloat(tronWeb.fromSun(rewardInfo[4]));
+        rewardInfos.luckWin = parseFloat(tronWeb.fromSun(rewardInfo[5]));
+        rewardInfos.lotteryWin = parseFloat(tronWeb.fromSun(rewardInfo[6]));
+        rewardInfos.split = parseFloat(tronWeb.fromSun(rewardInfo[7]));
+        rewardInfos.lottery = parseFloat(tronWeb.fromSun(rewardInfo[8]));
+        
+        if (userInfos.maxDeposit > 0 || rewardInfos.split < 100) {
+            $(".split-deposit").css({ "background": "gray" });
+        } else {
+            $(".split-deposit").css({ "background": "#0AC8D6" });
+        }
+    }
+
+    async function updateContractInfos() {
+        // 合约地址
+        let shortbsg2Addr = bsg2Addr.substring(0, 6) + "..." + bsg2Addr.substring(bsg2Addr.length - 6);
+        $(".contractAddress").text(shortbsg2Addr);
+        // 合约信息
+        let contractInfos = await bsg2.getContractInfos().call();
+        startTime = parseInt(contractInfos[1][0]);
+        curDay = parseInt((parseInt(new Date().getTime()/1000) - startTime)/perDay);
+        curDayStart = startTime + curDay * perDay;
+        curCycle = parseInt(curDay / 15);
+        $(".lottery_times").text(curDay + 1);
+
+        lastDistribute = parseInt(contractInfos[1][1]);
+        totalUsers = parseInt(contractInfos[1][2]);
+        luckPool = parseFloat(tronWeb.fromSun(contractInfos[1][3]));
+        lotteryPool = parseFloat(tronWeb.fromSun(contractInfos[1][4]));
+        totalDeposits = parseInt(tronWeb.fromSun(contractInfos[1][5]));
+
+        let nowTime = parseInt((new Date).getTime() / 1000);
+        let runningTime = formatDate(startTime, nowTime);
+        $(".runningTime").text(runningTime);
+        // 存款倒计时
+        let latestUnfreezeTime = parseInt(getLatestUnfreezeTime());
+        let depositCountDown = formatDate(nowTime, latestUnfreezeTime);
+        $(".depositCountDown").text(depositCountDown);
+
+        // 总玩家
+        $(".totalUsers").text(totalUsers);
+
+        // 幸运奖池
+        $(".luckPool").text("$" + (luckPool).toFixed(2));
+        // 竞猜奖池
+        $(".lotteryPool").text("$" + (lotteryPool).toFixed(2));
+
+        // 当日总投资
+        $(".totalDeposits").text("$" + (totalDeposits).toFixed(2));
+
+        if (rewardInfos.lottery < 10 || nowTime > lastDistribute + lotteryDuration || userInfos.maxDeposit == 0) {
+            $(".lottery-bet").css({ "background": "gray" });
+        } else {
+            $(".lottery-bet").css({ "background": "#0AC8D6" });
+        }
+
+        if (rewardInfos.split == 0 && rewardInfos.lottery == 0) {
+            $(".split-transfer").css({ "background": "gray" });
+        } else {
+            $(".split-transfer").css({ "background": "#0AC8D6" });
+        }
+        
+        userCycleMax = parseInt(tronWeb.fromSun(await bsg2.getUserCycleMax(userAddr, curCycle).call()));
+        if (userCycleMax == 0) {
+            if (userInfos.maxDepositable == 0) {
+                userCycleMax = 1000;
+            } else {
+                userCycleMax = userInfos.maxDepositable;
+            }
+        }
+    }
+
+    function getLatestUnfreezeTime() {
+        let latestUnfreeze = 0;
+        for (let i = 0; i < orderInfos.length; i++) {
+            let unfreeze = parseInt(orderInfos[i][2]);
+            let isUnfreezed = orderInfos[i][3];
+            if (!isUnfreezed) {
+                latestUnfreeze = unfreeze;
+                break;
+            }
+        }
+
+        return latestUnfreeze;
+    }
+
+    async function updateUserInfo() {
+        // 用户TRX余额
+        trxBal = parseInt(tronWeb.fromSun(await tronWeb.trx.getBalance(userAddr)));
+        $(".trxBal").text(trxBal.toFixed(2));
+        // 用户USDT余额
+        usdtBal = parseInt(tronWeb.fromSun(await usdt.balanceOf(userAddr).call()));
+        $(".usdtBal").text(usdtBal.toFixed(2));
+        // 总收益
+        $(".totalRevenue").text(userInfos.totalRevenue.toFixed(2));
+        // 等级
+        for (i = 0; i < 5; i++) {
+            $(".level").eq(i).attr("src", "");
+        }
+
+        for (i = 0; i < userInfos.level; i++) {
+            $(".level").eq(i).attr("src", "./icon/1-star-colored.png");
+        }
+
+        $(".myReferral").text(userInfos.referrer.substring(0, 6) + "..." + userInfos.referrer.substring(userInfos.referrer.length - 6));
+
+        // 注册
+        refer = userInfos.referrer;
+        if (refer == zeroAddr) {
+            $("#register").modal("show");
+            refer = getLinkInviter();
+            if (refer == '') {
+                refer = refererDefault;
+            }
+            $(".referAddr").text(refer);
+        } else {
+            $("#register").modal("hide");
+        }
+
+        $(".splitAvailable").text(rewardInfos.split.toFixed(2));
+        $(".lotteryAvailable").text(rewardInfos.lottery.toFixed(2));
+    }
+
+    async function updateRewardInfo() {
+        // 解冻存款
+        $(".unfreezed").text(rewardInfos.capitals.toFixed(2));
+        $(".staticReward").text(rewardInfos.statics.toFixed(2));
+
+        // 1-4层收益
+        $(".inviteReward").text(rewardInfos.invited.toFixed(2));
+        // 5-15层收益
+        $(".level5Reward").text(rewardInfos.level5Released.toFixed(2));
+
+        // 5-15层冻结
+        $(".level5Freezed").text(rewardInfos.level5Freezed.toFixed(2));
+
+        // 幸运奖
+        $(".luckReward").text(rewardInfos.luckWin.toFixed(2));
+
+        // lottery奖
+        $(".lotteryReward").text(rewardInfos.lotteryWin.toFixed(2));
+
+        // 可取款金额
+        let totalReward = rewardInfos.capitals +
+            rewardInfos.statics +
+            rewardInfos.invited +
+            rewardInfos.level5Released +
+            rewardInfos.luckWin +
+            rewardInfos.lotteryWin;
+        $(".totalReward").text(totalReward.toFixed(2))
+    }
+
+    async function updateLatestDepositors() {
+        // 最新存款
+        let depositors = await bsg2.getDepositors().call();
+        let checkLength = 3;
+        if (depositors.length < 3) {
+            checkLength = depositors.length;
+        }
+        let depositorMap = new Map();
+        let counter = 0;
+        for (let i = depositors.length; i > depositors.length - checkLength; i--) {
+            let depositor = tronWeb.address.fromHex(depositors[i - 1]);
+            let index = depositorMap.get(depositor);
+            if (!index) {
+                index = 0;
+            }
+            depositorMap.set(depositor, index + 1);
+            index = depositorMap.get(depositor);
+            let shortDepositor = depositor.substring(0, 6) + "..." + depositor.substring(bsg2Addr.length - 6);
+            let userTotalInfos = await bsg2.getUserInfos(depositor).call();
+            let orders = userTotalInfos[2];
+            let amount = parseFloat(tronWeb.fromSun(orders[orders.length - index][0]));
+            let start = parseInt(orders[orders.length - index][1]);
+            let startDate = getDateTime(parseInt(start));
+
+            $(".depositorsTable tbody tr").eq(counter).find('td').eq(0).text(shortDepositor);
+            $(".depositorsTable tbody tr").eq(counter).find('td').eq(1).text(startDate);
+            $(".depositorsTable tbody tr").eq(counter).find('td').eq(2).find('h3').text(amount);
+            counter++;
+            await sleep(500);
+        }
+    }
+
+    async function updateWinners() {
+        // 幸运之星
+        let luckInfos = await bsg2.getLuckInfos(curDay).call();
+        let luckUsers = luckInfos[0];
+        let luckDeposits = luckInfos[1];
+        for (let i = 0; i < luckUsers.length; i++) {
+            let luckUser = tronWeb.address.fromHex(luckUsers[i]);
+            if (luckUser != zeroAddr) {
+                let shortLuckUser = luckUser.substring(0, 8) + "..." + luckUser.substring(bsg2Addr.length - 8);
+                let luckLink = "https://tronscan.io/#/address/" + luckUser;
+                let luckDeposit = tronWeb.fromSun(luckDeposits[i]);
+                $(".luckyPlayers a").eq(i).attr("href", luckLink);
+                $(".luckyPlayers a").eq(i).find("h3").eq(0).text(shortLuckUser);
+                $(".luckyPlayers a").eq(i).find("h3").eq(1).text(luckDeposit);
+            }
+        }
+
+        // 竞猜获奖
+        if (curDay > 0) {
+            let dayInfos = await bsg2.getDayInfos(curDay - 1).call();
+            let lotteryReward = parseFloat(tronWeb.fromSun(dayInfos[2]));
+            let winners = await bsg2.getLottoryWinners(curDay - 1).call();
+            let totalPercents = 0;
+            for (let i = 0; i < winners.length; i++) {
+                let winner = tronWeb.address.fromHex(winners[i]);
+                if (winner != zeroAddr) {
+                    totalPercents = totalPercents + lotteryWinnerPercents[i];
+                }
+            }
+            for (let i = 0; i < winners.length; i++) {
+                let winner = tronWeb.address.fromHex(winners[i]);
+                if (winner != zeroAddr) {
+                    let shortWinner = winner.substring(0, 8) + "..." + winner.substring(bsg2Addr.length - 8);
+                    let winAmt = lotteryReward * lotteryWinnerPercents[i] / totalPercents;
+                    $(".lotteryWinners a").eq(i).find("h3").eq(0).text(shortWinner);
+                    if (winAmt == 0) {
+                        $(".lotteryWinners a").eq(i).find("h3").eq(1).text(langMap['waitting_distribute']);
+                    } else {
+                        $(".lotteryWinners a").eq(i).find("h3").eq(1).text(winAmt.toFixed(2));
+                    }
+                }
+            }
+        }
+    }
+
+    // async function updateTeamInfos() {
+    //     let teamDeposit = await bsg2.getTeamDeposit(userAddr).call()
+    //     let maxDeposit = parseInt(tronWeb.fromSun(teamDeposit[0]));
+    //     let otherDeposit = parseInt(tronWeb.fromSun(teamDeposit[1]));
+    //     let teamTotalDeposit = parseInt(tronWeb.fromSun(teamDeposit[2]));
+    //     $(".maxDeposit").text(maxDeposit.toFixed(2))
+    //     $(".otherDeposit").text(otherDeposit.toFixed(2))
+    //     $(".totalTeamDeposit").text(teamTotalDeposit.toFixed(2))
+
+    //     // total invit
+    //     $(".teamNum").text(userInfos.teamNum);
+    // }
+
+    async function updateHistoryInfos() {
+        let checkLength = 7;
+        if (curDay < checkLength) {
+            checkLength = curDay;
+        }
+        let nowTime = parseInt(new Date().getTime() / 1000);
+        for (let i = curDay; i >= curDay - checkLength; i--) {
+            let dayInfos = await bsg2.getDayInfos(i).call();
+            let date = getDate(nowTime);
+            let newbie = parseInt(dayInfos[0]);
+            let deposit = parseFloat(tronWeb.fromSun(dayInfos[1]));
+            nowTime = nowTime - perDay;
+            // 更新用户信息
+            $(".player-history").append(getHistroyHtml(date, newbie, 1));
+
+            // 更新幸运奖
+            let pool = deposit * 5 / 1000;
+            $(".lucky-history").append(getHistroyHtml(date, pool.toFixed(2), 0));
+
+            // 更新竞猜历史
+            $(".lottery-history").append(getHistroyHtml(date, pool.toFixed(2), 0));
+
+            // 更新总投资历史
+            $(".deposits-history").append(getHistroyHtml(date, deposit.toFixed(2), 0));
+            
+            await sleep(500)
+        }
+
+        let checkLotteryLength = 50;
+        if (lotteryInfos.length < 50) {
+            checkLotteryLength = lotteryInfos.length;
+        }
+        for (let i = lotteryInfos.length; i > lotteryInfos.length - checkLotteryLength; i--) {
+            let time = parseInt(lotteryInfos[i - 1][0]);
+            let date = getDate(time)
+            let number = parseInt(lotteryInfos[i - 1][1]);
+            $(".history-infos").append(getHistroyHtml(date, number, 2));
+        }
+    }
+
+    function getHistroyHtml(date, amount, type) {
+        let historyHtml;
+        if (type == 0) {
+            historyHtml = "<div class ='col-md-12'><div class ='history'><p>" + date + "</p><p><span>" + amount + "</span> USDT</p></div></div>"
+        } else if (type == 1) {
+            historyHtml = "<div class ='col-md-12'><div class ='history'><p>" + date + "</p><p><span>" + amount + "</span> Players</p></div></div>"
+        } else {
+            historyHtml = "<div class ='history-info'><p>" + date + "</p><p><span>" + amount + "</span> Players</p></div>";
+        }
+
+        return historyHtml;
+    }
+
+    // 注册
+    $(".register-confirm").on("click", async function () {
+        if(tronWeb.isAddress(refer)){
+            let userTotalInfos = await bsg2.getUserInfos(refer).call();
+            let userInfo = userTotalInfos[0];
+            let maxDeposit = parseFloat(tronWeb.fromSun(userInfo[2]));
+            if(maxDeposit > 0 || refer == refererDefault){
+                await bsg2.register(refer).send({ feeLimit: 10000e6, callValue: 0 })
+                await sleep(3000).then(async function () {
+                    location.reload()
+                })
+            }else{
+                layer.msg(langMap['invalid_refer'])
+            }
+            
+        }else{
+            layer.msg(langMap['invalid_refer'])
+        }
+        
+    })
+
+    $(".inputAmount").on("input", async function () {
+        let inputAmount = $(".inputAmount").val();
+        input = parseInt(inputAmount);
+        if (!input) {
+            input = 0;
+        }
+        // 更新存款数量
+        $(".depositAmount").text(input);
+        let total = parseFloat(input * 225 / 1000) + parseFloat(input);
+        // 更新总收益
+        $(".total").text(total.toFixed(2));
+        if (input % 100 == 0 && input >= 100 && input <= userCycleMax && input >= userInfos.maxDeposit) {
+            inputOk = true;
+        } else {
+            inputOk = false;
+        }
+
+        if (inputOk) {
+            $(".deposit-confirm").css({ "background": "#814FF6" });
+        } else {
+            $(".deposit-confirm").css({ "background": "gray" });
+        }
+    })
+
+    // 存款
+    $(".deposit-confirm").on("click", async function () {
+        if (inputOk) {
+            let amount = tronWeb.toSun(input);
+            let isAppr = await isApprove(bsg2Addr);
+            if (isAppr) {
+                await bsg2.deposit(amount).send({ feeLimit: 10000e6, callValue: 0 });
+                await sleep(autoRefresh).then(async function () {
+                    location.reload()
+                })
+            } else {
+                setApprove(bsg2Addr).then(async function () {
+                    await bsg2.deposit(amount).send({ feeLimit: 10000e6, callValue: 0 });
+                    await sleep(autoRefresh).then(async function () {
+                        location.reload()
+                    })
+                })
+            }
+        }
+    })
+
+    // 取款
+    $(".withdraw-confirm").on("click", async function () {
+        await bsg2.withdraw().send({ feeLimit: 10000e6, callValue: 0 });
+        await sleep(autoRefresh).then(async function () {
+            location.reload()
+        })
+    })
+
+    // 参与竞猜
+    $(".lottery-bet").on("click", async function () {
+        let lotteryNumber = $(".lotteryNumber").val();
+        let nowTime = parseInt(new Date().getTime() / 1000)
+        if (rewardInfos.lottery >= 10 || nowTime > lastDistribute + lotteryDuration || userInfos.maxDeposit == 0) {
+            await bsg2.lotteryBet(lotteryNumber).send({ feeLimit: 10000e6, callValue: 0 });
+            await sleep(autoRefresh).then(async function () {
+                location.reload()
+            })
+        }
+    })
+
+    $(".splitDepositAmount").on("input", function () {
+        let splitDepositAmount = parseInt($(".splitDepositAmount").val());
+        if (splitDepositAmount >= 100 && splitDepositAmount <= 5000 && splitDepositAmount % 100 == 0 && splitDepositAmount <= rewardInfos.split && userInfos.maxDeposit == 0) {
+            $(".split-deposit").css({ "background": "#0AC8D6" });
+        } else {
+            $(".split-deposit").css({ "background": "gray" });
+        }
+    })
+
+    // 通过拆分账户存款
+    $(".split-deposit").on("click", async function () {
+        let splitDepositAmount = parseInt($(".splitDepositAmount").val());
+        if (splitDepositAmount >= 100 && splitDepositAmount <= 5000 && splitDepositAmount % 100 == 0 && splitDepositAmount <= rewardInfos.split && userInfos.maxDeposit == 0) {
+            await bsg2.depositBySplit(tronWeb.toSun(splitDepositAmount)).send({ feeLimit: 10000e6, callValue: 0 });
+            await sleep(autoRefresh).then(async function () {
+                location.reload()
+            })
+        }
+    })
+
+    $(".transferAmount").on("input", function () {
+        let selected = parseInt($(".transferSelect option:selected").val());
+        let transferAmount = parseInt($(".transferAmount").val());
+        let reqBal = transferAmount + transferAmount * 0.1;
+        let receiver = $(".receiver").val();
+        if (tronWeb.isAddress(receiver)) {
+            if (selected == 0) {
+                if (transferAmount >= 100 && transferAmount % 100 == 0 && reqBal <= rewardInfos.split) {
+                    $(".split-transfer").css({ "background": "#0AC8D6" });
+                } else {
+                    $(".split-transfer").css({ "background": "gray" });
+                }
+            } else {
+                if (transferAmount > 0 && reqBal <= rewardInfos.lottery) {
+                    $(".split-transfer").css({ "background": "#0AC8D6" });
+                } else {
+                    $(".split-transfer").css({ "background": "gray" });
+                }
+            }
+        } else {
+            $(".split-transfer").css({ "background": "gray" });
+        }
+    })
+
+    // 转账
+    $(".split-transfer").on("click", async function () {
+        let selected = parseInt($(".transferSelect option:selected").val());
+        let transferAmount = parseInt($(".transferAmount").val());
+        let reqBal = transferAmount + transferAmount * 0.1;
+        let receiver = $(".receiver").val();
+        if (tronWeb.isAddress(receiver)) {
+            if (selected == 0) {
+                if (transferAmount >= 100 && transferAmount % 100 == 0 && reqBal <= rewardInfos.split) {
+                    await bsg2.transferBySplit(receiver, tronWeb.toSun(transferAmount), 0).send({ feeLimit: 10000e6, callValue: 0 });
+                    await sleep(autoRefresh).then(async function () {
+                        location.reload()
+                    })
+                }
+            } else {
+                if (transferAmount > 0 && reqBal <= rewardInfos.lottery) {
+                    await bsg2.transferBySplit(receiver, tronWeb.toSun(transferAmount), 1).send({ feeLimit: 10000e6, callValue: 0 });
+                    await sleep(autoRefresh).then(async function () {
+                        location.reload()
+                    })
+                }
+            }
+        }
+    })
+
+    async function isApprove(to) {
+        let res = await usdt.allowance(userAddr, to).call();
+        let allowanceAmount = parseFloat(res);
+        if (allowanceAmount > 10000e6) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    async function setApprove(to) {
+        let amount = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+        await usdt.approve(to, amount).send({ feeLimit: 1500e6, callValue: 0 });
+    }
+
+    async function lotteryCountdown(disTime, type) {
+        // 开奖倒计时
+        setInterval(async () => {
+            let nowTime = (new Date).getTime() / 1000;
+            let leftTime = disTime - nowTime;
+            if (leftTime > 0) {
+                // 进行中
+                let leftHours = Math.floor(leftTime / perHour)
+                let hourStart;
+                let hourEnd;
+                if (leftHours >= 10) {
+                    hourStart = Math.floor(leftHours / 10)
+                    hourEnd = Math.floor(leftHours % 10)
+                } else {
+                    hourStart = 0;
+                    hourEnd = leftHours;
+                }
+
+                let leftMinutes = Math.floor(leftTime % perHour / perMinute)
+                let minuteStart;
+                let minuteEnd;
+                if (leftMinutes >= 10) {
+                    minuteStart = Math.floor(leftMinutes / 10)
+                    minuteEnd = Math.floor(leftMinutes % 10)
+                } else {
+                    minuteStart = 0;
+                    minuteEnd = leftMinutes;
+                }
+                let leftSeconds = Math.floor(leftTime % perHour % perMinute)
+                let secondStart;
+                let secondEnd;
+                if (leftSeconds >= 10) {
+                    secondStart = Math.floor(leftSeconds / 10);
+                    secondEnd = Math.floor(leftSeconds % 10);
+                } else {
+                    secondStart = 0
+                    secondEnd = leftSeconds
+                }
+                if (type == 0) {
+                    $(".hourStart0").text(hourStart)
+                    $(".hourEnd0").text(hourEnd)
+                    $(".minuteStart0").text(minuteStart)
+                    $(".minuteEnd0").text(minuteEnd)
+                    $(".secondStart0").text(secondStart)
+                    $(".secondEnd0").text(secondEnd)
+                } else {
+                    $(".hourStart1").text(hourStart)
+                    $(".hourEnd1").text(hourEnd)
+                    $(".minuteStart1").text(minuteStart)
+                    $(".minuteEnd1").text(minuteEnd)
+                    $(".secondStart1").text(secondStart)
+                    $(".secondEnd1").text(secondEnd)
+                }
+
+            }
+        }, 1000)
+    }
+
+    function formatDate(startTime, endTime) {
+        let formatTime;
+        if (startTime < endTime) {
+            let compareTime = endTime - startTime;  // 时间差
+            day = Math.floor(compareTime / perDay);
+            let hours = Math.floor(compareTime % perDay / perHour);
+            let miniutes = Math.floor(compareTime % perDay % perHour / perMinute);
+            if (day < 10) {
+                day = "0" + day
+            }
+
+            if (hours < 10) {
+                hours = "0" + hours
+            }
+
+            if (miniutes < 10) {
+                miniutes = "0" + miniutes
+            }
+            formatTime = day + ":" + hours + ":" + miniutes;
+        } else {
+            formatTime = "00:00:00";
+        }
+        return formatTime;
+    }
+
+    function getDateTime(timstamp) {
+        let date = new Date(timstamp * 1000);
+        let year = date.getFullYear();  // 获取完整的年份(4位,1970)
+        let month = date.getMonth() + 1;  // 获取月份(0-11,0代表1月,用的时候记得加上1)
+        let day = date.getDate();  // 获取日(1-31)
+        let hour = date.getHours();  // 获取小时数(0-23)
+        let minute = date.getMinutes();  // 获取分钟数(0-59)
+        let second = date.getSeconds();  // 获取秒数(0-59)
+        let forMatDate = year + "-" + month + "-" + day + " " + hour + ":" + minute + ":" + second;
+        return forMatDate
+    }
+
+    function getDate(timstamp) {
+        let date = new Date(timstamp * 1000);
+        let year = date.getFullYear();  // 获取完整的年份(4位,1970)
+        let month = date.getMonth() + 1;  // 获取月份(0-11,0代表1月,用的时候记得加上1)
+        let day = date.getDate();  // 获取日(1-31)
+        let forMatDate = year + "/" + month + "/" + day;
+        return forMatDate
+    }
+
+    function getLinkInviter() {
+        let inviter = ''
+        let url = document.location.toString();
+        let arrUrl = url.split("ref=");
+        if (arrUrl[1]) {
+            inviter = arrUrl[1].substring(0, 34);
+            if (!tronWeb.isAddress(inviter)) {
+                inviter = ''
+            }
+        }
+        return inviter
+
+    }
+
+    function getUrlRelativePath() {
+        let url = document.location.toString();
+        let arrUrl = url.split("//");
+        let start = arrUrl[1].indexOf("/");
+        let relUrl = arrUrl[1].substring(start);//stop省略，截取从start开始到结尾的所有字符
+        if (relUrl.indexOf("?") != -1) {
+            relUrl = relUrl.split("?")[0];
+        }
+        return relUrl;
+    }
+
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms))
+    }
+});

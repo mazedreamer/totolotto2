@@ -1,0 +1,113 @@
+
+function addNightMode(){
+    $('.sidebar').addClass('night-mode');
+    $('.topbar').addClass('night-mode');	
+    $('.topbar').addClass('night-mode-top-border');	
+    $('.footer').addClass('night-mode');
+    $('.main-side-detail').addClass('night-mode-side');
+    // $('.side-detail-level-data').addClass('night-mode-white');	
+    $('.main-dashboard').addClass('night-mode-main');	
+    $('.footer h1').addClass('night-mode-font-color');	
+    $('.side-detail-level-text h3').addClass('night-mode-font-color-mobile-h3')
+    $('.side-detail-balance p').addClass('night-mode-font-color-mobile')
+    $('.side-detail-balance p input').addClass('night-mode-font-color-mobile')
+    $('.side-detail-balance h3').addClass('night-mode-font-color-mobile-h3')
+    $('.side-detail-top-player-title h3').addClass('night-mode-font-color')
+    $('.side-detail-top-player-title h4').addClass('night-mode-font-color-see')
+    $('.topbar .nav-link ').addClass('night-mode-font-color')
+    $('.audit-button a ').addClass('night-mode-white')
+    // $('.en img').addClass('night-mode-top-img')	
+    $('body').addClass('night-mode-main');		
+    $('.main-team').addClass('night-mode-main');	
+    $('.dropdown-menu').addClass('night-mode-main');	
+    $('.landing-text h1').addClass('night-mode-font-color');	
+    $('.landing p').addClass('night-mode-font-color-sub');
+    $('.audit').addClass('night-mode-white');
+    $('.start').addClass('night-mode-main');
+    $('.reward h1').addClass('night-mode-font-color');
+    $('.reward p').addClass('night-mode-font-color-sub');
+    $('.start h1').addClass('night-mode-font-color');
+    $('.start p').addClass('night-mode-font-color-sub');
+    $('.social-footer').addClass('night-mode');
+    $('.mode').addClass('night-mode-font-color');
+    $('.mode-2').addClass('night-mode-font-color');
+    $('.level-mobile').addClass('night-mode');
+    
+}
+function removeNightMode(){
+    $('.sidebar').removeClass('night-mode');
+    $('.topbar').removeClass('night-mode');	
+    $('.topbar').removeClass('night-mode-top-border');	
+    $('.footer').removeClass('night-mode');
+    $('.main-side-detail').removeClass('night-mode-side');	
+    // $('.side-detail-level-data').removeClass('night-mode-white');	
+    $('.main-dashboard').removeClass('night-mode-main');	
+    $('.side-detail-balance p').removeClass('night-mode-font-color-mobile')
+    $('.side-detail-balance p input').removeClass('night-mode-font-color-mobile')
+    $('.side-detail-balance h3').removeClass('night-mode-font-color-mobile-h3')
+    $('.side-detail-top-player-title h3').removeClass('night-mode-font-color')
+    $('.side-detail-top-player-title h4').removeClass('night-mode-font-color-see')
+    $('.side-detail-level-text h3').removeClass('night-mode-font-color-mobile-h3')
+    $('.topbar .nav-link ').removeClass('night-mode-font-color')
+    $('.footer h1').removeClass('night-mode-font-color');	
+    $('.audit-button a ').removeClass('night-mode-white')
+    // $('.en img').removeClass('night-mode-top-img')
+    $('body').removeClass('night-mode-main');
+    $('.main-team').removeClass('night-mode-main');
+    $('.dropdown-menu').removeClass('night-mode-main');	
+    $('.landing-text h1').removeClass('night-mode-font-color');	
+    $('.landing p').removeClass('night-mode-font-color-sub');	
+    $('.audit').removeClass('night-mode-white');
+    $('.start').removeClass('night-mode-main');
+    $('.reward h1').removeClass('night-mode-font-color');
+    $('.reward p').removeClass('night-mode-font-color-sub');
+    $('.start h1').removeClass('night-mode-font-color');
+    $('.start p').removeClass('night-mode-font-color-sub');
+    $('.social-footer').removeClass('night-mode');
+    $('.mode').removeClass('night-mode-font-color');
+    $('.mode-2').removeClass('night-mode-font-color');
+    $('.level-mobile').removeClass('night-mode');
+
+}
+
+$(function(){
+    var light_mode = window.localStorage.getItem('light-mode');
+    if(light_mode === 'true'){
+        $('.switch').attr('checked',true)
+        $('.light-mode p').text(langMap['light_mode'])
+        removeNightMode()
+    } else {
+        $('.switch').attr('checked',false)
+        $('.light-mode p').text(langMap['dark_mode'])
+        addNightMode()
+    }
+
+    $('.switch').on('change', function() {
+        if ($(this).is(':checked')) {
+            window.localStorage.setItem('light-mode', true);
+            $('.light-mode p').text(langMap['light_mode'])
+            removeNightMode()
+        
+        }
+        else {
+            window.localStorage.setItem('light-mode', false);
+            $('.light-mode p').text(langMap['dark_mode'])
+            addNightMode()						
+        }
+    });
+
+    var u = navigator.userAgent;
+    var isAndroid = u.indexOf('Android') > -1 || u.indexOf('Adr') > -1; //android终端
+    var isiOS = !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/); //ios终端
+    if(isAndroid || !isiOS){
+        $(".mobile-only").addClass("mobile-only-andriod");
+        $(".mobile-modal-view-withdraw").addClass("mobile-only-andriod");
+        $(".mobile-modal-view-player").addClass("mobile-only-andriod");
+        $(".player-body-data").addClass("margin-top10");
+        $(".deposit-body-data").addClass("margin-top15");
+        $(".withdraw-body-data").addClass("margin-top15");
+        $(".bet-display").addClass("margin-top15");
+        $(".energy-body").addClass("margin-top20");
+    }
+})
+
