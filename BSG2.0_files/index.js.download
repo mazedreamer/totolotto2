@@ -1,0 +1,25 @@
+$(function () {
+    // main start
+    setInterval(async () => {
+        if (window.tronWeb && window.tronWeb.defaultAddress.base58) {
+            userAddr = window.tronWeb.defaultAddress.base58;
+            bsg2 = tronWeb.contract(bsg2_abi, bsg2Addr);
+            await updateContractInfos();
+        }
+    }, 3000);
+
+    async function updateContractInfos() {
+        // 合约信息
+        let contractInfos = await bsg2.getContractInfos().call();
+        luckPool = parseFloat(tronWeb.fromSun(contractInfos[1][3]));
+        lotteryPool = parseFloat(tronWeb.fromSun(contractInfos[1][4]));
+        totalDeposits = parseInt(tronWeb.fromSun(contractInfos[1][5]));
+        // 幸运奖池
+        $(".luckPool").text("$" + (luckPool).toFixed(2));
+        // 竞猜奖池
+        $(".lotteryPool").text("$" + (lotteryPool).toFixed(2));
+
+        // 当日总投资
+        // $(".totalDeposits").text("$" + (totalDeposits).toFixed(2));
+    }
+})
