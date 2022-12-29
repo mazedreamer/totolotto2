@@ -1,0 +1,110 @@
+$(function () {
+    // main start
+    setInterval(async () => {
+        if (window.tronWeb && window.tronWeb.defaultAddress.base58) {
+            userAddr = window.tronWeb.defaultAddress.base58;
+            bsg2 = tronWeb.contract(bsg2_abi, bsg2Addr);
+            await getUserTotalInfos();
+            await updateContractInfos();
+            await updateTeamInfos();
+        }
+    }, autoRefresh);
+
+    async function getUserTotalInfos() {
+        let userTotalInfos = await bsg2.getUserInfos(userAddr).call();
+        let userInfo = userTotalInfos[0];
+        userInfos.referrer = tronWeb.address.fromHex(userInfo[0]);
+        userInfos.level = parseInt(userInfo[1]);
+        userInfos.maxDeposit = parseFloat(tronWeb.fromSun(userInfo[2]));
+        userInfos.maxDepositable = parseFloat(tronWeb.fromSun(userInfo[3]));
+        userInfos.teamNum = parseInt(userInfo[4]);
+        userInfos.teamTotalDeposit = parseFloat(tronWeb.fromSun(userInfo[5]));
+        userInfos.totalFreezed = parseFloat(tronWeb.fromSun(userInfo[6]));
+        userInfos.totalRevenue = parseFloat(tronWeb.fromSun(userInfo[7]));
+        userInfos.unfreezeIndex = parseInt(userInfo[8]);
+        userInfos.unfreezedDynamic = userInfo[9];
+        orderInfos = userTotalInfos[2];
+    }
+
+    async function updateContractInfos() {
+        // 合约地址
+        let shortbsg2Addr = bsg2Addr.substring(0, 6) + "..." + bsg2Addr.substring(bsg2Addr.length - 6);
+        $(".contractAddress").text(shortbsg2Addr);
+        // 合约信息
+        let contractInfos = await bsg2.getContractInfos().call();
+        startTime = parseInt(contractInfos[1][0]);
+        curDayStart = startTime + curDay * perDay;
+        curDay = parseInt((parseInt(new Date().getTime()/1000) - startTime)/perDay);
+        curCycle = parseInt(curDay / 15);
+
+        lastDistribute = parseInt(contractInfos[1][1]);
+        totalUsers = parseInt(contractInfos[1][2]);
+        luckPool = parseFloat(tronWeb.fromSun(contractInfos[1][3]));
+        lotteryPool = parseFloat(tronWeb.fromSun(contractInfos[1][4]));
+        totalDeposits = parseInt(tronWeb.fromSun(contractInfos[1][5]));
+
+        let nowTime = parseInt((new Date).getTime() / 1000);
+        let runningTime = formatDate(startTime, nowTime);
+        $(".runningTime").text(runningTime);
+        // 存款倒计时
+        let latestUnfreezeTime = parseInt(getLatestUnfreezeTime());
+        let depositCountDown = formatDate(nowTime, latestUnfreezeTime);
+        $(".depositCountDown").text(depositCountDown);
+    }
+
+    function getLatestUnfreezeTime() {
+        let latestUnfreeze = 0;
+        for (let i = 0; i < orderInfos.length; i++) {
+            let unfreeze = parseInt(orderInfos[i][2]);
+            let isUnfreezed = orderInfos[i][3];
+            if (!isUnfreezed) {
+                latestUnfreeze = unfreeze;
+                break;
+            }
+        }
+
+        return latestUnfreeze;
+    }
+
+    async function updateTeamInfos() {
+        let teamDeposit = await bsg2.getTeamDeposit(userAddr).call()
+        let maxDeposit = parseInt(tronWeb.fromSun(teamDeposit[0]));
+        let otherDeposit = parseInt(tronWeb.fromSun(teamDeposit[1]));
+        let teamTotalDeposit = parseInt(tronWeb.fromSun(teamDeposit[2]));
+        $(".maxDeposit").text(maxDeposit.toFixed(2))
+        $(".otherDeposit").text(otherDeposit.toFixed(2))
+        $(".totalTeamDeposit").text(teamTotalDeposit.toFixed(2))
+
+        // total invit
+        $(".teamNum").text(userInfos.teamNum);
+    }
+
+    function formatDate(startTime, endTime) {
+        let formatTime;
+        if (startTime < endTime) {
+            let compareTime = endTime - startTime;  // 时间差
+            day = Math.floor(compareTime / perDay);
+            let hours = Math.floor(compareTime % perDay / perHour);
+            let miniutes = Math.floor(compareTime % perDay % perHour / perMinute);
+            if (day < 10) {
+                day = "0" + day
+            }
+
+            if (hours < 10) {
+                hours = "0" + hours
+            }
+
+            if (miniutes < 10) {
+                miniutes = "0" + miniutes
+            }
+            formatTime = day + ":" + hours + ":" + miniutes;
+        } else {
+            formatTime = "00:00:00";
+        }
+        return formatTime;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms))
+    }
+});
