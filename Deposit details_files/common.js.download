@@ -1,0 +1,93 @@
+const bsg2Addr = "TJVkeegvEPEJgzwXxJJtEzCTeHAu6EPRCf";
+const usdtAddr = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+const refererDefault = "TEFujFZMV6duBRUuzNzXoQsUSQMQSfx6nK";
+const zeroAddr = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb";
+const lotteryWinnerPercents = [3500, 2000, 1000, 500, 500, 500, 500, 500, 500, 500];
+const baseDivider = 10000;
+const perDay = 24 * 60 * 60;
+const perHour = 60 * 60;
+const perMinute = 60;
+const autoRefresh = 3000;
+const lotteryDuration = 30 * 60;
+
+let input;
+let inputOk = false;
+let bsg2;
+let usdt;
+let userAddr = "";
+let curDay = 0;
+let curDayStart = 0;
+let curCycle = 0;
+let userCycleMax = 0;
+
+let startTime;
+let lastDistribute = 0;
+let totalUsers = 0;
+let luckPool = 0;
+let lotteryPool = 0;
+let totalDeposits = 0;
+let isUpdated = false;
+
+let userInfos = {
+    referrer: "",
+    level: 0,
+    maxDeposit: 0,
+    maxDepositable: 0,
+    teamNum: 0,
+    teamTotalDeposit: 0,
+    totalFreezed: 0,
+    totalRevenue: 0,
+    unfreezeIndex: 0,
+    unfreezedDynamic: false
+}
+
+let rewardInfos = {
+    capitals: 0,
+    statics: 0,
+    invited: 0,
+    level5Freezed: 0,
+    level5Released: 0,
+    luckWin: 0,
+    lotteryWin: 0,
+    split: 0,
+    lottery: 0
+}
+
+let orderInfos;
+let lotteryInfos;
+
+let platformTotalDeposit = 0;
+
+let langMap = new Map();
+
+$(".tronscan").on("click", function () {
+    window.location.href = "https://tronscan.io/#/contract/" + bsg2Addr
+})
+
+$(".detail").eq(0).on("click", function () {
+    window.location.href = "https://tronscan.io/#/contract/" + bsg2Addr
+})
+
+$(".myReferral").on('click', function () {
+    window.location.href = "https://tronscan.io/#/address/" + userInfos.referrer
+})
+
+$(".telegram").on("click", function () {
+    window.location.href = "https://t.me/promotingglobalteam"
+})
+
+$(".discord").on("click", function () {
+    window.location.href = "https://discord.gg/qWZ68HA8GR"
+})
+
+$(".twitter").on("click", function () {
+    window.location.href = "https://twitter.com/BSGSplitGame"
+})
+
+$(".facebook").on("click", function () {
+    window.location.href = "https://www.facebook.com/BSGsmart88/"
+})
+
+$(".haze-crypto").on("click", function () {
+    window.location.href = "https://hazecrypto.net/audit/BSG2"
+})

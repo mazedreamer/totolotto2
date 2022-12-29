@@ -1,0 +1,158 @@
+$(function () {
+    // main start
+    setInterval(async () => {
+        if (window.tronWeb && window.tronWeb.defaultAddress.base58) {
+            userAddr = window.tronWeb.defaultAddress.base58;
+            bsg2 = tronWeb.contract(bsg2_abi, bsg2Addr);
+            await getUserTotalInfos();
+            await updateContractInfos();
+            if (!isUpdated) {
+                isUpdated = true;
+                updateOrders();
+            }
+        }
+    }, autoRefresh);
+
+    async function getUserTotalInfos() {
+        let userTotalInfos = await bsg2.getUserInfos(userAddr).call();
+        let userInfo = userTotalInfos[0];
+        orderInfos = userTotalInfos[2];
+
+        userInfos.referrer = tronWeb.address.fromHex(userInfo[0]);
+        userInfos.level = parseInt(userInfo[1]);
+        userInfos.maxDeposit = parseFloat(tronWeb.fromSun(userInfo[2]));
+        userInfos.maxDepositable = parseFloat(tronWeb.fromSun(userInfo[3]));
+        userInfos.teamNum = parseInt(userInfo[4]);
+        userInfos.teamTotalDeposit = parseFloat(tronWeb.fromSun(userInfo[5]));
+        userInfos.totalFreezed = parseFloat(tronWeb.fromSun(userInfo[6]));
+        userInfos.totalRevenue = parseFloat(tronWeb.fromSun(userInfo[7]));
+        userInfos.unfreezeIndex = parseInt(userInfo[8]);
+        userInfos.unfreezedDynamic = userInfo[9];
+    }
+
+    async function updateContractInfos() {
+        // 合约地址
+        let shortbsg2Addr = bsg2Addr.substring(0, 6) + "..." + bsg2Addr.substring(bsg2Addr.length - 6);
+        $(".contractAddress").text(shortbsg2Addr);
+        // 合约信息
+        let contractInfos = await bsg2.getContractInfos().call();
+        startTime = parseInt(contractInfos[1][0]);
+        curDayStart = startTime + curDay * perDay;
+        curDay = parseInt((parseInt(new Date().getTime()/1000) - startTime)/perDay);
+        curCycle = parseInt(curDay / 15);
+
+        lastDistribute = parseInt(contractInfos[1][1]);
+        totalUsers = parseInt(contractInfos[1][2]);
+        luckPool = parseFloat(tronWeb.fromSun(contractInfos[1][3]));
+        lotteryPool = parseFloat(tronWeb.fromSun(contractInfos[1][4]));
+        totalDeposits = parseInt(tronWeb.fromSun(contractInfos[1][5]));
+
+        let nowTime = parseInt((new Date).getTime() / 1000);
+        let runningTime = formatDate(startTime, nowTime);
+        $(".runningTime").text(runningTime);
+        // 存款倒计时
+        let latestUnfreezeTime = parseInt(getLatestUnfreezeTime());
+        let depositCountDown = formatDate(nowTime, latestUnfreezeTime);
+        $(".depositCountDown").text(depositCountDown);
+       
+    }
+
+    function getLatestUnfreezeTime() {
+        let latestUnfreeze = 0;
+        for (let i = 0; i < orderInfos.length; i++) {
+            let unfreeze = parseInt(orderInfos[i][2]);
+            let isUnfreezed = orderInfos[i][3];
+            if (!isUnfreezed) {
+                latestUnfreeze = unfreeze;
+                break;
+            }
+        }
+
+        return latestUnfreeze;
+    }
+
+    async function updateOrders() {
+        for (let i = 0; i < orderInfos.length; i++) {
+            // 存款金额
+            let amount = parseFloat(tronWeb.fromSun(orderInfos[i][0]));
+
+            // 存款日期
+            let start = parseInt(orderInfos[i][1]);
+            let formatStart = getDateTime(start);
+
+            // 解冻日期
+            let unfreeze = parseInt(orderInfos[i][2]);
+            let formatUnfreeze = getDateTime(unfreeze);
+
+            // 周期收益
+            let income = parseFloat(amount * 225 / 1000).toFixed(2);
+            // 订单状态
+            let isUnfreezed = orderInfos[i][3];
+
+            let timeNow = parseInt(new Date().getTime() / 1000);
+            let status = '';
+            let className = '';
+            if (timeNow < unfreeze) {
+                status = langMap['status_freezing'];
+                className = "status-progress";
+            } else {
+                if (isUnfreezed) {
+                    status = langMap['status_completed'];
+                    className = "status-completed";
+
+                } else {
+                    status = langMap['status_unbonded'];
+                    className = "status-progress";
+                }
+            }
+            let depositDetailsHtml = "<tr><td><div class='main-latest-despositor-data-amount'><img src='./icon/tron-currency.png' height='24'><h3>" + amount;
+            depositDetailsHtml = depositDetailsHtml + "</h3></div></td><td>" + formatStart;
+            depositDetailsHtml = depositDetailsHtml + "</td><td>" + formatUnfreeze;
+            depositDetailsHtml = depositDetailsHtml + "</td><td><div class='main-latest-despositor-data-amount'><img src='./icon/tron-currency.png' height='24'><h3>" + income;
+            depositDetailsHtml = depositDetailsHtml + "</h3></div></td><td class='" + className;
+            depositDetailsHtml = depositDetailsHtml + "'><h2  style='text-align: center;'>" + status + "</h2></td></tr>";
+            $(".ordersTable").append(depositDetailsHtml);
+        }
+    }
+
+    function formatDate(startTime, endTime) {
+        let formatTime;
+        if (startTime < endTime) {
+            let compareTime = endTime - startTime;  // 时间差
+            day = Math.floor(compareTime / perDay);
+            let hours = Math.floor(compareTime % perDay / perHour);
+            let miniutes = Math.floor(compareTime % perDay % perHour / perMinute);
+            if (day < 10) {
+                day = "0" + day
+            }
+
+            if (hours < 10) {
+                hours = "0" + hours
+            }
+
+            if (miniutes < 10) {
+                miniutes = "0" + miniutes
+            }
+            formatTime = day + ":" + hours + ":" + miniutes;
+        } else {
+            formatTime = "00:00:00";
+        }
+        return formatTime;
+    }
+
+    function getDateTime(timstamp) {
+        let date = new Date(timstamp * 1000);
+        let year = date.getFullYear();  // 获取完整的年份(4位,1970)
+        let month = date.getMonth() + 1;  // 获取月份(0-11,0代表1月,用的时候记得加上1)
+        let day = date.getDate();  // 获取日(1-31)
+        let hour = date.getHours();  // 获取小时数(0-23)
+        let minute = date.getMinutes();  // 获取分钟数(0-59)
+        let second = date.getSeconds();  // 获取秒数(0-59)
+        let forMatDate = year + "-" + month + "-" + day + " " + hour + ":" + minute + ":" + second;
+        return forMatDate
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms))
+    }
+});
